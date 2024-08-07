@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Combined Experiment</title>
+    <link rel="stylesheet" type="text/css" href="./css/style.css">
+    <link rel="stylesheet" href="./node_modules/bootstrap/dist/css/bootstrap.min.css">
+    <script src="./webgazer.js"></script>
+    <!-- <style>
+        .modal {
+           display: none;
+           position: fixed;
+           z-index: 1;
+           left: 0;
+           top: 0;
+           width: 100%;
+           height: 100%;
+           overflow: auto;
+           background-color: rgb(0,0,0);
+           background-color: rgba(0,0,0,0.4);
+       }
+
+       .modal-content {
+           background-color: #fefefe;
+           margin: 15% auto;
+           padding: 20px;
+           border: 1px solid #888;
+           width: 80%;
+           text-align: center;
+        }
+   </style> -->
+
+   <style>
+    #overlay {
+        width: 320px; /* Match the default video width */
+        height: 240px; /* Match the default video height */
+        background-color: white;
+        position: fixed;
+        top: 10px; /* Same as video top position */
+        left: 10px; /* Same as video left position */
+        z-index: 1001; /* Ensure it's above the video */
+        
+    }
+</style>
+
+
+   
+</head>
+<body>
+    <canvas id="plotting_canvas" width="500" height="500" style="cursor:crosshair;"></canvas>
+
+    <script src="./node_modules/sweetalert/dist/sweetalert.min.js"></script>
+    <script src="./js/main.js"></script>
+    <script src="./js/calibration.js"></script>
+    <script src="./js/precision_calculation.js"></script>
+    <script src="./js/precision_store_points.js"></script>
+
+    <nav id="webgazerNavbar" class="navbar navbar-expand-lg navbar-default navbar-fixed-top">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <!-- The hamburger menu button -->
+          <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#myNavbar">
+            <span class="navbar-toggler-icon">Menu</span>
+          </button>
+        </div>
+        <div class="collapse navbar-collapse" id="myNavbar">
+          <ul class="nav navbar-nav">
+            <!-- Accuracy -->
+            <li id="Accuracy"><a>Not yet Calibrated</a></li>
+            <li><a onclick="Restart()" href="#">Recalibrate</a></li>
+            <li><a onclick="webgazer.applyKalmanFilter(!webgazer.params.applyKalmanFilter)" href="#">Toggle Kalman Filter</a></li>
+          </ul>
+          <ul class="nav navbar-nav navbar-right">
+            <li><a class="helpBtn" onclick="helpModalShow()" href="#"><span class="glyphicon glyphicon-cog"></span> Help</a></li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+    <!-- Calibration points -->
+    <div class="calibrationDiv">
+        <input type="button" class="Calibration" id="Pt1"></input>
+        <input type="button" class="Calibration" id="Pt2"></input>
+        <input type="button" class="Calibration" id="Pt3"></input>
+        <input type="button" class="Calibration" id="Pt4"></input>
+        <input type="button" class="Calibration" id="Pt5"></input>
+        <input type="button" class="Calibration" id="Pt6"></input>
+        <input type="button" class="Calibration" id="Pt7"></input>
+        <input type="button" class="Calibration" id="Pt8"></input>
+        <input type="button" class="Calibration" id="Pt9"></input>
+    </div>
+
+    <!-- Modal -->
+    <div id="helpModal" class="modal fade" role="dialog">
+      <div class="modal-dialog">
+
+        <!-- Modal content-->
+        <div class="modal-content">
+          <div class="modal-body">
+            <img src="media/example/calibration.png" width="100%" height="100%" alt="webgazer demo instructions"></img>
+          </div>
+          <div class="modal-footer">
+            <button id="closeBtn" type="button" class="btn btn-default" data-bs-dismiss="modal">Close & load saved model </button>
+            <button type="button" id='start_calibration' class="btn btn-primary" data-bs-dismiss="modal" onclick="Restart()">Calibrate</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <!-- 添加白色方块元素 -->
+    <div id="overlay"></div> 
+    
+
+
+
+
+    <!-- 弹窗 -->
+    <!-- <div id="myModal" class="modal">
+        <div class="modal-content">
+            <p>休息结束，点击确认进行眼动校准</p>
+            <button id="confirmButton">确认</button>
+        </div>
+    </div> -->
+
+    <script>
+        // 初始化WebGazer
+        
+        
+        window.onload = async function() {
+
+        //start the webgazer tracker
+        await webgazer.setRegression('ridge') /* currently must set regression and tracker */
+        //.setTracker('clmtrackr')
+            .setGazeListener(function(data, clock) {
+             //   console.log(data); /* data is an object containing an x and y key which are the x and y prediction coordinates (no bounds limiting) */
+              //   console.log(clock); /* elapsed time in milliseconds since webgazer.begin() was called */
+            })
+            .saveDataAcrossSessions(true)
+            .begin();
+            webgazer.showVideoPreview(true) /* shows all video previews */
+                .showPredictionPoints(true) /* shows a square every 100 milliseconds where current prediction is */
+                .applyKalmanFilter(true); /* Kalman Filter defaults to on. Can be toggled by user. */
+
+        //Set up the webgazer video feedback.
+        var setup = function() {
+
+            //Set up the main canvas. The main canvas is used to calibrate the webgazer.
+            var canvas = document.getElementById("plotting_canvas");
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            canvas.style.position = 'fixed';
+
+            // Set up the video preview style
+        var interval = setInterval(function() {
+            var video = document.getElementById('webgazerVideoFeed');
+            if (video) {
+                clearInterval(interval);
+                video.style.width = '320px'; // Set desired width
+                video.style.height = '240px'; // Set desired height
+                video.style.position = 'fixed';
+                video.style.top = '10px'; // Keep it at the top
+                video.style.left = '10px';  // Keep it at the left
+                video.style.zIndex = '900'; // Ensure it's on top
+                
+            }
+        }, 100);
+
+        };
+        setup();
+        document.getElementById('overlay').style.display = 'none';
+        checkConditionAndExecute();
+        };
+
+        // Set to true if you want to save the data even if you reload the page.
+        window.saveDataAcrossSessions = true;
+
+        window.onbeforeunload = function() {
+        webgazer.end();
+        }
+
+        /**
+        * Restart the calibration process by clearing the local storage and reseting the calibration point
+        */
+        function Restart(){
+            document.getElementById("Accuracy").innerHTML = "<a>Not yet Calibrated</a>";
+            webgazer.clearData();//会导致实验数据清空？
+            ClearCalibration();
+            PopUpInstruction();
+        }
+
+
+
+
+
+        function waitForCondition() {
+            return new Promise(resolve => {
+                const interval = setInterval(() => {
+                    const conditionMet = checkCondition(); // 您的条件检查逻辑
+                    if (conditionMet) {
+                        clearInterval(interval);
+                        resolve();
+                    }
+                }, 1000); // 每秒检查一次
+            });
+        }
+
+        function checkCondition() {
+            // 这里是检查条件的逻辑
+            // 例如，检查某个元素的值
+            let element1 = document.getElementById('Accuracy');
+            let value1 = element1.textContent.match(/\d+/); // 提取数字部分
+            console.log('now:',element1,value1);
+            return value1 && (parseInt(value1, 10) > 1); // 替换为您的条件
+        }
+
+        function showConfirmationDialog() {
+            return new Promise(resolve => {
+                const modal = document.getElementById('myModal');
+                const confirmButton = document.getElementById('confirmButton');
+                swal({
+                    
+                    text: "休息时间结束，为了保证精确度，需要重新进行校准。校准精确度>80%进入下一实验。",
+                    buttons:{
+                      confirm: true
+                    }
+                }).then(isConfirm => {
+                    Restart(); // 直接调用 restart 函数
+                    waitForCondition().then(resolve); // 等待条件满足后继续
+                });
+
+
+
+                // confirmButton.onclick = () => {
+                //     modal.style.display = 'none';
+                //     Restart(); // 直接调用 restart 函数
+                //     waitForCondition().then(resolve); // 等待条件满足后继续
+                // };
+
+                // modal.style.display = 'block';
+            });
+        }
+
+
+        function checkConditionAndExecute() {
+            let targetElement = document.getElementById('Accuracy');
+            let value = targetElement.textContent.match(/\d+/); // 提取数字部分
+
+            if (value && parseInt(value, 10) > 1) { // 设定条件为值大于85
+                console.log(value);
+                
+                runExperiment();
+            } else {
+                console.log('no!');
+                // 如果条件不满足，设置一个定时器继续检查
+                setTimeout(checkConditionAndExecute, 1000); // 每秒检查一次
+            }
+        }
+
+        // 定义一个函数来记录眼动数据
+        function recordEyeData(duration) {
+            let eyeData = {
+                x: [],
+                y: [],
+                timestamp: []
+            };
+
+            function collectData() {
+                let prediction = webgazer.getCurrentPrediction();
+                if (prediction) {
+                    eyeData.x.push(prediction.x);
+                    eyeData.y.push(prediction.y);
+                    eyeData.timestamp.push(Date.now());
+                }
+            }
+
+            // 每100ms收集一次数据
+            let interval = setInterval(collectData, 100);
+
+            // 在指定持续时间后停止数据收集
+            setTimeout(() => {
+                clearInterval(interval);
+                console.log(eyeData); // 可以将数据保存或传送到服务器
+                // 在这里将eyeData整合到实验数据中
+            }, duration * 1000);
+        }
+
+        // 定义显示面孔的函数
+        function showFaces(face_left, face_right, duration) {
+            // 调试输出路径
+            console.log('Left face path:', 'images/' + face_left);
+            console.log('Right face path:', 'images/' + face_right);
+
+            // 显示面孔
+            let faceLeftStim = new Image();
+            faceLeftStim.src = 'images/' + face_left;
+            faceLeftStim.style.position = 'absolute';
+            faceLeftStim.style.left = '25%';
+            faceLeftStim.style.top = '50%';
+            faceLeftStim.style.transform = 'translate(-50%, -45%) scale(0.95)';
+            faceLeftStim.style.zIndex = '1002'; // Ensure it's above the video
+            faceLeftStim.onload = function() {
+                document.body.appendChild(faceLeftStim);
+            };
+            faceLeftStim.onerror = function() {
+                console.error('Failed to load image: ' + faceLeftStim.src);
+            };
+
+            let faceRightStim = new Image();
+            faceRightStim.src = 'images/' + face_right;
+            faceRightStim.style.position = 'absolute';
+            faceRightStim.style.left = '75%';
+            faceRightStim.style.top = '50%';
+            faceRightStim.style.transform = 'translate(-50%, -45%) scale(0.95)';
+            faceLeftStim.style.zIndex = '1002'; // Ensure it's above the video
+            faceRightStim.onload = function() {
+                document.body.appendChild(faceRightStim);
+            };
+            faceRightStim.onerror = function() {
+                console.error('Failed to load image: ' + faceRightStim.src);
+            };
+
+            // 开始记录眼动数据
+            recordEyeData(duration);
+
+            // 显示指定持续时间后移除面孔
+            setTimeout(() => {
+                document.body.removeChild(faceLeftStim);
+                document.body.removeChild(faceRightStim);
+            }, duration * 1000);
+        }
+        var faces = ['face1', 'face2', 'face3', 'face4', 'face5', 'face6', 'face7', 'face8'];
+        var conditions = ['neutral-neutral', 'happy-sad', 'sad-neutral', 'neutral-happy', 'sad-sad', 'happy-neutral', 'sad-happy', 'neutral-sad', 'happy-happy'];
+        stimuli_pairs = [];
+        faces.forEach(function(face) {
+            conditions.forEach(function(condition) {
+                let [left_emotion, right_emotion] = condition.split('-');
+                stimuli_pairs.push({
+                    left: `${face}_${left_emotion}.JPG`,
+                    right: `${face}_${right_emotion}.JPG`
+                });
+            });
+        });
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                let j = Math.floor(Math.random() * (i + 1)); // 从 0 到 i 的随机索引
+
+                // 交换元素 array[i] 和 array[j]
+                // 我们使用“解构分配（destructuring assignment）”语法来实现它
+                // 你将在后面的章节中找到有关该语法的更多详细信息
+                // 可以写成：
+                // let t = array[i]; array[i] = array[j]; array[j] = t
+                [array[i], array[j]] = [array[j], array[i]];
+             }
+        }
+        shuffle(stimuli_pairs);
+
+         //定义指导语（固定时间）
+         function showInstruction(text, duration) {
+            return new Promise(resolve => {
+                const instruction = document.createElement('div');
+                instruction.innerHTML = text; 
+                instruction.style.position = 'absolute';
+                instruction.style.left = '50%';
+                instruction.style.top = '50%';
+                instruction.style.transform = 'translate(-50%, -50%)';
+                instruction.style.fontSize = '24px'; // 调整字体大小
+                instruction.style.lineHeight = '1.5'; // 调整行高
+                instruction.style.textAlign = 'left';
+                document.body.appendChild(instruction);
+
+                setTimeout(() => {
+                    document.body.removeChild(instruction);
+                    resolve();
+                }, duration * 1000);
+            });
+        }
+
+        //定义指导语（按空格）
+        function showInstruction2(text) {
+            return new Promise(resolve => {
+                const instruction = document.createElement('div');
+                instruction.innerHTML = text; 
+                instruction.style.position = 'absolute';
+                instruction.style.left = '50%';
+                instruction.style.top = '50%';
+                instruction.style.transform = 'translate(-50%, -50%)';
+                instruction.style.fontSize = '24px'; // 调整字体大小
+                instruction.style.lineHeight = '1.5'; // 调整行高
+                instruction.style.textAlign = 'left';
+                document.body.appendChild(instruction);
+
+                const keyListener = (e) => {
+                    if (e.key === ' ') {
+                        document.body.removeChild(instruction);
+                        document.removeEventListener('keydown', keyListener);
+                        resolve();
+                    }
+                };
+                document.addEventListener('keydown', keyListener);
+            });
+        }
+
+        //填写实验编号
+        function askForParticipantId() {
+            return new Promise(resolve => {
+                const container = document.createElement('div');
+                container.style.position = 'absolute';
+                container.style.left = '50%';
+                container.style.top = '50%';
+                container.style.transform = 'translate(-50%, -50%)';
+                container.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+                container.style.border = '2px solid black';
+                container.style.padding = '20px';
+                container.style.textAlign = 'center';
+
+                const inputLabel = document.createElement('label');
+                inputLabel.textContent = '请输入实验编号：';
+                inputLabel.style.display = 'block';
+                inputLabel.style.marginBottom = '10px';
+                container.appendChild(inputLabel);
+
+                const inputField = document.createElement('input');
+                inputField.type = 'text';
+                inputField.id = 'participantId';
+                inputField.style.display = 'block';
+                inputField.style.margin = '10px auto';
+                container.appendChild(inputField);
+
+                const submitButton = document.createElement('button');
+                submitButton.textContent = '提交';
+                submitButton.style.display = 'block';
+                submitButton.style.margin = '10px auto';
+                submitButton.onclick = () => {
+                    const participantId = document.getElementById('participantId').value;
+                    if (participantId) {
+                        document.body.removeChild(container);
+                        resolve(participantId);
+                    } else {
+                        alert('请输入实验编号');
+                    }
+                };
+                container.appendChild(submitButton);
+
+                document.body.appendChild(container);
+            });
+        }
+
+
+        // 拼合面孔的文件名
+        var chimericFaces = [
+            '1_happy.JPG', '1_happy_neutral.JPG', '1_happy_sad.jpg', '1_neutral.JPG', '1_neutral_happy.JPG', 
+            '1_neutral_sad.jpg', '1_sad.JPG', '1_sad_happy.jpg', '1_sad_neutral.jpg', '2_happy.JPG', 
+            '2_happy_neutral.JPG', '2_happy_sad.jpg', '2_neutral.JPG', '2_neutral_happy.JPG', '2_neutral_sad.jpg',
+            '2_sad.JPG', '2_sad_happy.jpg', '2_sad_neutral.jpg', '3_happy.JPG', '3_happy_neutral.JPG', '3_happy_sad.jpg',
+            '3_neutral.JPG', '3_neutral_happy.JPG', '3_neutral_sad.jpg', '3_sad.JPG', '3_sad_happy.jpg', '3_sad_neutral.jpg',
+            '4_happy.JPG', '4_happy_neutral.JPG', '4_happy_sad.jpg', '4_neutral.JPG', '4_neutral_happy.JPG',
+            '4_neutral_sad.jpg', '4_sad.JPG', '4_sad_happy.jpg', '4_sad_neutral.jpg', '5_happy.JPG', '5_happy_neutral.JPG',
+            '5_happy_sad.jpg', '5_neutral.JPG', '5_neutral_happy.JPG', '5_neutral_sad.jpg', '5_sad.JPG',
+            '5_sad_happy.jpg', '5_sad_neutral.jpg', '6_happy.JPG', '6_happy_neutral.JPG', '6_happy_sad.jpg',
+            '6_neutral.JPG', '6_neutral_happy.JPG', '6_neutral_sad.jpg', '6_sad.JPG', '6_sad_happy.jpg',
+            '6_sad_neutral.jpg', '7_happy.JPG', '7_happy_neutral.JPG', '7_happy_sad.jpg', '7_neutral.JPG',
+            '7_neutral_happy.JPG', '7_neutral_sad.jpg', '7_sad.JPG', '7_sad_happy.jpg', '7_sad_neutral.jpg',
+            '8_happy.JPG', '8_happy_neutral.JPG', '8_happy_sad.jpg', '8_neutral.JPG', '8_neutral_happy.JPG',
+            '8_neutral_sad.jpg', '8_sad.JPG', '8_sad_happy.jpg', '8_sad_neutral.jpg'
+        ];
+
+        // 随机打乱顺序
+        shuffle(chimericFaces);
+
+        // 练习传统点实验
+        async function runDotPractice() {
+            const num_trials = 5;
+            for (let trial = 0; trial < num_trials; trial++) {
+                // 显示固定点
+                const fixation = document.createElement('div');
+                fixation.textContent = '+';
+                fixation.style.position = 'absolute';
+                fixation.style.left = '50%';
+                fixation.style.top = '50%';
+                fixation.style.transform = 'translate(-50%, -45%)';
+                fixation.style.fontSize = '48px';
+                document.body.appendChild(fixation);
+
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                document.body.removeChild(fixation);
+
+                // 显示面孔并记录眼动数据
+                showFaces(stimuli_pairs[trial].left, stimuli_pairs[trial].right, 2);
+
+                // 显示点并记录反应
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                const targetStim = document.createElement('div');
+                targetStim.textContent = '.';
+                targetStim.style.position = 'absolute';
+                targetStim.style.left = Math.random() > 0.5 ? '25%' : '75%';
+                targetStim.style.top = '50%';
+                targetStim.style.transform = 'translate(-50%, -45%)';
+                targetStim.style.fontSize = '48px';
+                document.body.appendChild(targetStim);
+
+                // 等待响应
+                let response = null;
+                const responseListener = (e) => {
+                    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                        response = e.key;
+                        document.removeEventListener('keydown', responseListener);
+                        document.body.removeChild(targetStim);
+                    }
+                };
+                document.addEventListener('keydown', responseListener);
+
+                await new Promise(resolve => setTimeout(() => {
+                    document.body.removeEventListener('keydown', responseListener);
+                    if (response === null) {
+                        document.body.removeChild(targetStim);
+                    }
+                    resolve();
+                }, 1000));
+            }
+        }
+
+        // 练习拼合脸实验
+        async function runChimericPractice() {
+            const num_trials = 5;
+            for (let trial = 0; trial < num_trials; trial++) {
+                // 显示固定点
+                const fixation = document.createElement('div');
+                fixation.textContent = '+';
+                fixation.style.position = 'absolute';
+                fixation.style.left = '50%';
+                fixation.style.top = '50%';
+                fixation.style.transform = 'translate(-50%, -45%) ';
+                fixation.style.fontSize = '48px';
+                document.body.appendChild(fixation);
+
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                document.body.removeChild(fixation);
+
+                // 显示面孔并记录反应
+                let faceStim = new Image();
+                faceStim.src = 'images/' + chimericFaces[trial];
+                faceStim.style.position = 'absolute';
+                faceStim.style.left = '50%';
+                faceStim.style.top = '50%';
+                faceStim.style.transform = 'translate(-50%, -45%) scale(0.95)';
+                faceLeftStim.style.zIndex = '1002'; // Ensure it's above the video
+                faceStim.onload = function() {
+                    document.body.appendChild(faceStim);
+                };
+                faceStim.onerror = function() {
+                    console.error('Failed to load image: ' + faceStim.src);
+                };
+
+                let response = null;
+                const responseListener = (e) => {
+                    if (e.key === 'j' || e.key === 'k' || e.key === 'l') {
+                        response = e.key;
+                        document.removeEventListener('keydown', responseListener);
+                    }
+                };
+                document.addEventListener('keydown', responseListener);
+
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                document.removeEventListener('keydown', responseListener);
+
+                // 显示"被动观察"提示并移除面孔
+                document.body.removeChild(faceStim);
+                await showInstruction('请观察', 1.5);
+
+                // 重新显示面孔并记录眼动数据
+                faceStim = new Image();
+                faceStim.src = 'images/' + chimericFaces[trial];
+                faceStim.style.position = 'absolute';
+                faceStim.style.left = '50%';
+                faceStim.style.top = '50%';
+                faceStim.style.transform = 'translate(-50%, -45%) scale(0.95)';
+                faceLeftStim.style.zIndex = '1002'; // Ensure it's above the video
+                faceStim.onload = function() {
+                    document.body.appendChild(faceStim);
+                };
+                faceStim.onerror = function() {
+                    console.error('Failed to load image: ' + faceStim.src);
+                };
+
+                // 记录眼动数据
+                recordEyeData(2);
+
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                document.body.removeChild(faceStim);
+            }
+        }
+
+        // 实验主循环
+        async function runExperiment() {
+            
+            document.getElementById('overlay').style.display = 'block'; // Show the overlay
+
+            const participantId = await askForParticipantId();
+            console.log('实验编号:', participantId); // 这里可以保存实验编号或用于后续处理
+            
+            // 在实验开始时进行眼动校准
+
+            // 练习传统点实验
+            await showInstruction2('<b>实验一</b><br><br>接下来你会看到左右两张人脸照片，请<span style="color: red;">随意观察</span>。4s之后，屏幕上会出现一个黑色小圆点，如果圆点在左边，请按 <span style="color: blue;">键盘‘左键（←）’</span>；如果在右边，请按<span style="color: blue;">‘右键（→）’</span>。<span style="color: red;">请在2s内尽量快而准确地做出反应</span>。<br><br>接下来我们首先进行一个简短的练习，练习结束后再进行正式实验。如果准备好进入练习，请按下<span style="color: blue;">‘空格’键</span>。');
+            await runDotPractice();
+
+            // 传统点实验参数
+            await showInstruction2('接下来进行正式实验，整个实验大概需要8分钟，<span style="color: red;">请保持头部和鼠标不动</span>。<br><br>如果准备好了请按下‘<span style="color: blue;">空格</span>’键。');
+            const num_dot_trials = 5;
+            const fixation_duration = 1;  // seconds
+            const stim_duration = 1;  // seconds
+            const response_time = 1;  // seconds
+            const rest_period = 1; // seconds
+
+            for (let trial = 0; trial < num_dot_trials; trial++) {
+                // 显示固定点
+                const fixation = document.createElement('div');
+                fixation.textContent = '+';
+                fixation.style.position = 'absolute';
+                fixation.style.left = '50%';
+                fixation.style.top = '50%';
+                fixation.style.transform = 'translate(-50%, -45%)';
+                fixation.style.fontSize = '48px';
+                document.body.appendChild(fixation);
+
+                await new Promise(resolve => setTimeout(resolve, fixation_duration * 1000));
+                document.body.removeChild(fixation);
+
+                // 显示面孔并记录眼动数据
+                showFaces(stimuli_pairs[trial].left, stimuli_pairs[trial].right, stim_duration);
+
+                // 显示点并记录反应
+                await new Promise(resolve => setTimeout(resolve, stim_duration * 1000));
+
+                const targetStim = document.createElement('div');
+                targetStim.textContent = '.';
+                targetStim.style.position = 'absolute';
+                targetStim.style.left = Math.random() > 0.5 ? '25%' : '75%';
+                targetStim.style.top = '50%';
+                targetStim.style.transform = 'translate(-50%, -45%)';
+                targetStim.style.fontSize = '48px';
+                document.body.appendChild(targetStim);
+
+                // 等待响应
+                let response = null;
+                const responseListener = (e) => {
+                    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                        response = e.key;
+                        document.removeEventListener('keydown', responseListener);
+                        document.body.removeChild(targetStim);
+                    }
+                };
+                document.addEventListener('keydown', responseListener);
+
+                await new Promise(resolve => setTimeout(() => {
+                    document.body.removeEventListener('keydown', responseListener);
+                    if (response === null) {
+                        document.body.removeChild(targetStim);
+                    }
+                    resolve();
+                }, response_time * 1000));
+            }
+
+            // 30秒休息时间
+            const restText = document.createElement('div');
+            restText.textContent = '恭喜你完成了实验一！请休息30s后再开始实验二。';
+            restText.style.position = 'absolute';
+            restText.style.left = '50%';
+            restText.style.top = '50%';
+            restText.style.transform = 'translate(-50%, -50%)';
+            restText.style.fontSize = '48px';
+            document.body.appendChild(restText);
+
+            await new Promise(resolve => setTimeout(resolve, 1 * 1000));
+            document.body.removeChild(restText);
+
+
+            document.getElementById('overlay').style.display = 'none'; // Hide the overlay
+
+            // 进行眼动校准
+            await showConfirmationDialog();
+
+
+            // 练习拼合脸实验
+            await showInstruction2('<b>实验二</b><br><br>接下来你会看到一张人脸照片，请你判断该人脸上的情绪是开心的，中性的还是伤心的。如果是<span style="color: red;">开心</span>的请按 <span style="color: blue;">‘J’’</span>键；<span style="color: red;">中性</span>的请按<span style="color: blue;">‘K’</span>键；<span style="color: red;">伤心</span>的请按<span style="color: blue;">‘L’</span>键。<span style="color: red;">请在2s内尽量快而准确地做出反应</span>。<br><br>随后你将看到<span style="color: red;">‘请观察’的提示语</span>，这时请<span style="color: red;">随意观察</span>人脸。<br><br>接下来我们首先进行一个简短的练习，练习结束后再进行正式实验。如果准备好进入练习，请按下<span style="color: blue;">‘空格’键</span>。');
+            await runChimericPractice();
+
+            // 拼合面孔实验参数
+            await showInstruction2('接下来进行正式实验，整个实验大概需要10分钟，<span style="color: red;">请保持头部和鼠标不动</span>。<br><br>如果准备好了请按下‘<span style="color: blue;">空格</span>’键。')
+
+            const fixation_duration2 = 1;
+            const response_duration = 1;
+            const passive_duration = 2;
+            const instruction_duration = 1.5;
+
+            for (let trial = 0; trial < chimericFaces.length; trial++) {
+                // 显示固定点
+                const fixation = document.createElement('div');
+                fixation.textContent = '+';
+                fixation.style.position = 'absolute';
+                fixation.style.left = '50%';
+                fixation.style.top = '50%';
+                fixation.style.transform = 'translate(-50%, -45%)';
+                fixation.style.fontSize = '48px';
+                document.body.appendChild(fixation);
+
+                await new Promise(resolve => setTimeout(resolve, fixation_duration2 * 1000));
+                document.body.removeChild(fixation);
+
+
+                // 显示面孔并记录反应
+                let faceStim = new Image();
+                faceStim.src = 'images/' + chimericFaces[trial];
+                faceStim.style.position = 'absolute';
+                faceStim.style.left = '50%';
+                faceStim.style.top = '50%';
+                faceStim.style.transform = 'translate(-50%, -45%) scale(0.95)';
+                faceLeftStim.style.zIndex = '1002'; // Ensure it's above the video
+                faceStim.onload = function() {
+                    document.body.appendChild(faceStim);
+                };
+                faceStim.onerror = function() {
+                    console.error('Failed to load image: ' + faceStim.src);
+                };
+
+                let response = null;
+                const responseListener = (e) => {
+                    if (e.key === 'j' || e.key === 'k' || e.key === 'l') {
+                        response = e.key;
+                        document.removeEventListener('keydown', responseListener);
+                    }
+                };
+                document.addEventListener('keydown', responseListener);
+
+                await new Promise(resolve => setTimeout(resolve, response_duration * 1000));
+                document.removeEventListener('keydown', responseListener);
+
+                // 显示"请观察"提示并移除面孔
+                document.body.removeChild(faceStim);
+                await showInstruction('请观察', instruction_duration);
+
+                // 重新显示面孔并记录眼动数据
+                faceStim = new Image();
+                faceStim.src = 'images/' + chimericFaces[trial];
+                faceStim.style.position = 'absolute';
+                faceStim.style.left = '50%';
+                faceStim.style.top = '50%';
+                faceStim.style.transform = 'translate(-50%, -45%) scale(0.95)';
+                faceLeftStim.style.zIndex = '1002'; // Ensure it's above the video
+                faceStim.onload = function() {
+                    document.body.appendChild(faceStim);
+                };
+                faceStim.onerror = function() {
+                    console.error('Failed to load image: ' + faceStim.src);
+                };
+
+                // 记录眼动数据
+                recordEyeData(passive_duration);
+
+                await new Promise(resolve => setTimeout(resolve, passive_duration * 1000));
+                document.body.removeChild(faceStim);
+            }
+            await showInstruction2('实验已经结束，非常感谢您参与本次实验，您的帮助对我们的研究非常重要！<br><br>您现在可以关闭页面了。')
+        }
+    
+    </script>
+    <!-- Latest compiled JavaScript -->
+    <script src="./js/resize_canvas.js"></script>
+    <script src="./node_modules/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

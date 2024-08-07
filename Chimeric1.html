@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chimeric Faces Experiment</title>
+    <script src="webgazer.js"></script>
+</head>
+<body>
+    <script>
+        window.onload = function() {
+            webgazer.setRegression('ridge')
+                .setTracker('clmtrackr')
+                .begin()
+                .showPredictionPoints(true);
+
+            webgazer.clearData();
+            webgazer.saveDataAcrossSessions(true);
+
+            window.onbeforeunload = function() {
+                webgazer.end();
+            }
+        };
+
+        function calibrate() {
+            return new Promise((resolve) => {
+                const calibrationPoints = [
+                    { x: '10%', y: '10%' },
+                    { x: '90%', y: '10%' },
+                    { x: '90%', y: '90%' },
+                    { x: '10%', y: '90%' },
+                    { x: '50%', y: '50%' }
+                ];
+
+                let pointIndex = 0;
+
+                function showCalibrationPoint() {
+                    if (pointIndex >= calibrationPoints.length) {
+                        resolve();
+                        return;
+                    }
+
+                    const point = calibrationPoints[pointIndex];
+                    const calibrationDot = document.createElement('div');
+                    calibrationDot.style.position = 'absolute';
+                    calibrationDot.style.left = point.x;
+                    calibrationDot.style.top = point.y;
+                    calibrationDot.style.width = '10px';
+                    calibrationDot.style.height = '10px';
+                    calibrationDot.style.backgroundColor = 'red';
+                    calibrationDot.style.borderRadius = '50%';
+                    document.body.appendChild(calibrationDot);
+
+                    setTimeout(() => {
+                        document.body.removeChild(calibrationDot);
+                        pointIndex++;
+                        showCalibrationPoint();
+                    }, 1000);
+                }
+
+                showCalibrationPoint();
+            });
+        }
+
+        function recordEyeData(duration) {
+            let eyeData = {
+                x: [],
+                y: [],
+                timestamp: []
+            };
+
+            function collectData() {
+                let prediction = webgazer.getCurrentPrediction();
+                if (prediction) {
+                    eyeData.x.push(prediction.x);
+                    eyeData.y.push(prediction.y);
+                    eyeData.timestamp.push(Date.now());
+                }
+            }
+
+            let interval = setInterval(collectData, 100);
+
+            setTimeout(() => {
+                clearInterval(interval);
+                console.log(eyeData);
+                // saveData(eyeData); // 可以将数据保存或传送到服务器
+            }, duration * 1000);
+        }
+
+        function showFace(imagePath, duration) {
+            return new Promise(resolve => {
+                console.log('Face path:', 'images/' + imagePath);
+
+                let faceStim = new Image();
+                faceStim.src = 'images/' + imagePath;
+                faceStim.style.position = 'absolute';
+                faceStim.style.left = '50%';
+                faceStim.style.top = '50%';
+                faceStim.style.transform = 'translate(-50%, -50%)';
+                faceStim.onload = function() {
+                    document.body.appendChild(faceStim);
+                };
+                faceStim.onerror = function() {
+                    console.error('Failed to load image: ' + faceStim.src);
+                };
+
+                setTimeout(() => {
+                    document.body.removeChild(faceStim);
+                    resolve();
+                }, duration * 1000);
+            });
+        }
+
+        function showInstruction(text, duration) {
+            return new Promise(resolve => {
+                const instruction = document.createElement('div');
+                instruction.textContent = text;
+                instruction.style.position = 'absolute';
+                instruction.style.left = '50%';
+                instruction.style.top = '50%';
+                instruction.style.transform = 'translate(-50%, -50%)';
+                instruction.style.fontSize = '48px';
+                document.body.appendChild(instruction);
+
+                setTimeout(() => {
+                    document.body.removeChild(instruction);
+                    resolve();
+                }, duration * 1000);
+            });
+        }
+
+        // 拼合面孔的文件名
+        var chimericFaces = [
+            '1_happy.JPG', '1_happy_neutral.JPG', '1_happy_sad.jpg', '1_neutral.JPG', '1_neutral_happy.JPG', 
+            '1_neutral_sad.jpg', '1_sad.JPG', '1_sad_happy.jpg', '1_sad_neutral.jpg', '2_happy.JPG', 
+            '2_happy_neutral.JPG', '2_happy_sad.jpg', '2_neutral.JPG', '2_neutral_happy.JPG', '2_neutral_sad.jpg',
+            '2_sad.JPG', '2_sad_happy.jpg', '2_sad_neutral.jpg', '3_happy.JPG', '3_happy_neutral.JPG', '3_happy_sad.jpg',
+            '3_neutral.JPG', '3_neutral_happy.JPG', '3_neutral_sad.jpg', '3_sad.JPG', '3_sad_happy.jpg', '3_sad_neutral.jpg',
+            '4_happy.JPG', '4_happy_neutral.JPG', '4_happy_sad.jpg', '4_neutral.JPG', '4_neutral_happy.JPG',
+            '4_neutral_sad.jpg', '4_sad.JPG', '4_sad_happy.jpg', '4_sad_neutral.jpg', '5_happy.JPG', '5_happy_neutral.JPG',
+            '5_happy_sad.jpg', '5_neutral.JPG', '5_neutral_happy.JPG', '5_neutral_sad.jpg', '5_sad.JPG',
+            '5_sad_happy.jpg', '5_sad_neutral.jpg', '6_happy.JPG', '6_happy_neutral.JPG', '6_happy_sad.jpg',
+            '6_neutral.JPG', '6_neutral_happy.JPG', '6_neutral_sad.jpg', '6_sad.JPG', '6_sad_happy.jpg',
+            '6_sad_neutral.jpg', '7_happy.JPG', '7_happy_neutral.JPG', '7_happy_sad.jpg', '7_neutral.JPG',
+            '7_neutral_happy.JPG', '7_neutral_sad.jpg', '7_sad.JPG', '7_sad_happy.jpg', '7_sad_neutral.jpg',
+            '8_happy.JPG', '8_happy_neutral.JPG', '8_happy_sad.jpg', '8_neutral.JPG', '8_neutral_happy.JPG',
+            '8_neutral_sad.jpg', '8_sad.JPG', '8_sad_happy.jpg', '8_sad_neutral.jpg'
+        ];
+
+        // 随机打乱顺序
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                let j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+             }
+        }
+        shuffle(chimericFaces);
+
+        async function runExperiment() {
+            await calibrate();
+
+            const fixation_duration = 2;
+            const response_duration = 2;
+            const passive_duration = 4;
+            const instruction_duration = 3;
+
+            for (let trial = 0; trial < chimericFaces.length; trial++) {
+                // 显示固定点
+                const fixation = document.createElement('div');
+                fixation.textContent = '+';
+                fixation.style.position = 'absolute';
+                fixation.style.left = '50%';
+                fixation.style.top = '50%';
+                fixation.style.transform = 'translate(-50%, -50%)';
+                fixation.style.fontSize = '48px';
+                document.body.appendChild(fixation);
+
+                await new Promise(resolve => setTimeout(resolve, fixation_duration * 1000));
+                document.body.removeChild(fixation);
+
+                // 显示"请按键"提示
+                await showInstruction('请按键', instruction_duration);
+
+                // 显示面孔并记录反应
+                let faceStim = new Image();
+                faceStim.src = 'images/' + chimericFaces[trial];
+                faceStim.style.position = 'absolute';
+                faceStim.style.left = '50%';
+                faceStim.style.top = '50%';
+                faceStim.style.transform = 'translate(-50%, -50%)';
+                faceStim.onload = function() {
+                    document.body.appendChild(faceStim);
+                };
+                faceStim.onerror = function() {
+                    console.error('Failed to load image: ' + faceStim.src);
+                };
+
+                let response = null;
+                const responseListener = (e) => {
+                    if (e.key === 'j' || e.key === 'k' || e.key === 'l') {
+                        response = e.key;
+                        document.removeEventListener('keydown', responseListener);
+                    }
+                };
+                document.addEventListener('keydown', responseListener);
+
+                await new Promise(resolve => setTimeout(resolve, response_duration * 1000));
+                document.removeEventListener('keydown', responseListener);
+
+                // 显示"被动观察"提示并移除面孔
+                document.body.removeChild(faceStim);
+                await showInstruction('被动观察', instruction_duration);
+
+                // 重新显示面孔并记录眼动数据
+                faceStim = new Image();
+                faceStim.src = 'images/' + chimericFaces[trial];
+                faceStim.style.position = 'absolute';
+                faceStim.style.left = '50%';
+                faceStim.style.top = '50%';
+                faceStim.style.transform = 'translate(-50%, -50%)';
+                faceStim.onload = function() {
+                    document.body.appendChild(faceStim);
+                };
+                faceStim.onerror = function() {
+                    console.error('Failed to load image: ' + faceStim.src);
+                };
+
+                // 记录眼动数据
+                recordEyeData(passive_duration);
+
+                await new Promise(resolve => setTimeout(resolve, passive_duration * 1000));
+                document.body.removeChild(faceStim);
+            }
+        }
+
+        runExperiment();
+    </script>
+</body>
+</html>
+
+</html>

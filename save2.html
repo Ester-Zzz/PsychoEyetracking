@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGazer Experiment</title>
+    <style>
+        .button-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .button-container button {
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+    <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+</head>
+<body>
+    <h1>WebGazer Experiment</h1>
+    <div class="button-container">
+        <button id="startButton">Start Experiment</button>
+    </div>
+
+    <script>
+        let gazeData = [];
+        let isRecording = false;
+
+        window.onload = function() {
+            webgazer.setGazeListener(function(data, elapsedTime) {
+                if (data == null || !isRecording) {
+                    return;
+                }
+                const gazeEntry = {
+                    time: Date.now(),
+                    x: data.x,
+                    y: data.y,
+                    eyeFeatures: {
+                        left: data.eyeFeatures.left,
+                        right: data.eyeFeatures.right
+                    }
+                };
+                gazeData.push(gazeEntry);
+            }).begin();
+        };
+
+        async function runExperiment() {
+            // 进行眼动校准（示例，需要替换为实际校准函数）
+            await performCalibration();
+
+            // 练习传统点实验
+            await showInstruction('开始传统点实验练习', 2);
+            await runDotPractice();
+
+            // 清空数据并开始记录
+            gazeData = [];
+            isRecording = true;
+
+            for (let trial = 0; trial < 72; trial++) {
+                // 循环1内容（示例，需要替换为实际实验代码）
+                await runDotTrial(trial);
+            }
+
+            // 停止记录数据并保存
+            isRecording = false;
+            saveGazeData('dot_experiment_data.json');
+
+            // 30秒休息时间
+            const restText = document.createElement('div');
+            restText.textContent = '请休息30秒';
+            restText.style.position = 'absolute';
+            restText.style.left = '50%';
+            restText.style.top = '50%';
+            restText.style.transform = 'translate(-50%, -50%)';
+            restText.style.fontSize = '48px';
+            document.body.appendChild(restText);
+
+            await new Promise(resolve => setTimeout(resolve, 30 * 1000));
+            document.body.removeChild(restText);
+
+            // 进行眼动校准（示例，需要替换为实际校准函数）
+            await performCalibration();
+
+            // 练习拼合脸实验
+            await showInstruction('开始拼合脸实验练习', 2);
+            await runChimericPractice();
+
+            // 清空数据并开始记录
+            gazeData = [];
+            isRecording = true;
+
+            for (let trial = 0; trial < 20; trial++) {
+                // 循环2内容（示例，需要替换为实际实验代码）
+                await runChimericTrial(trial);
+            }
+
+            // 停止记录数据并保存
+            isRecording = false;
+            saveGazeData('chimeric_experiment_data.json');
+        }
+
+        async function performCalibration() {
+            // 示例校准函数
+            console.log('Performing calibration...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log('Calibration done.');
+        }
+
+        async function showInstruction(message, duration) {
+            const instructionText = document.createElement('div');
+            instructionText.textContent = message;
+            instructionText.style.position = 'absolute';
+            instructionText.style.left = '50%';
+            instructionText.style.top = '50%';
+            instructionText.style.transform = 'translate(-50%, -50%)';
+            instructionText.style.fontSize = '32px';
+            document.body.appendChild(instructionText);
+
+            await new Promise(resolve => setTimeout(resolve, duration * 1000));
+            document.body.removeChild(instructionText);
+        }
+
+        async function runDotPractice() {
+            // 示例练习函数
+            console.log('Running dot practice...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log('Dot practice done.');
+        }
+
+        async function runDotTrial(trial) {
+            // 示例实验循环函数
+            console.log(`Running dot trial ${trial}...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log(`Dot trial ${trial} done.`);
+        }
+
+        async function runChimericPractice() {
+            // 示例练习函数
+            console.log('Running chimeric practice...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log('Chimeric practice done.');
+        }
+
+        async function runChimericTrial(trial) {
+            // 示例实验循环函数
+            console.log(`Running chimeric trial ${trial}...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log(`Chimeric trial ${trial} done.`);
+        }
+
+        function saveGazeData(filename) {
+            const blob = new Blob([JSON.stringify(gazeData)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            console.log(`Data saved as ${filename}`);
+        }
+
+        document.getElementById('startButton').addEventListener('click', runExperiment);
+    </script>
+</body>
+</html>
